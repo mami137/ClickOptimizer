@@ -1,5 +1,5 @@
 plugins {
-    id "net.fabricmc.fabric-loom" version "1.15.5"
+    id "fabric-loom" version "1.15.5"
     id "java"
 }
 
@@ -15,17 +15,20 @@ repositories {
 }
 
 loom {
+    // Mixin otomatik olarak Fabric Loom tarafından yönetilir.
+    // accessWidener ile korumalı alanlara erişim gerekirse buraya eklenebilir.
 }
 
 dependencies {
-    // Minecraft (26.x uses official mappings by default, no obfuscation)
+    // Minecraft & Mappings
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 
-    // Fabric Loader
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // Fabric Loader (Mixin dahil)
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // Fabric API
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    // Fabric API — yalnızca client-side event'ler ve lifecycle hook'ları için
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
 processResources {
@@ -38,12 +41,12 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
-    options.release = 25
+    options.release = 17
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
     withSourcesJar()
 }
 

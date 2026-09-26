@@ -1,84 +1,100 @@
 package com.subtick.hud;
 
 import com.subtick.config.SubTickConfig;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.DeltaTracker;
-import net.minecraft.resources.Identifier;
-import net.minecraft.network.chat.Component;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
 
 import java.util.LinkedList;
 import java.util.Queue;
 
-public final class SubTickHud implements HudElement {
+public final class SubTickHud implements HudRenderCallback {
 
     private static final Queue<Long> leftClicks = new LinkedList<>();
     private static final Queue<Long> rightClicks = new LinkedList<>();
 
-    private static final int VALUE_COLOR_LOW = 0x55FF55;
-    private static final int VALUE_COLOR_MID = 0xFFFF55;
-    private static final int VALUE_COLOR_HIGH = 0xFF5555;
-    private static final int BACKGROUND_COLOR = 0x80000000;
+    private static final int BG_COLOR = 0x90000000;
+    private static final int TITLE_COLOR = 0xFFFFFFFF;
+    private static final int CPS_LOW_COLOR = 0xFF55FF55;
+    private static final int CPS_MED_COLOR = 0xFFFFFF55;
+    private static final int CPS_HIGH_COLOR = 0xFFFF5555;
+    private static final int LABEL_COLOR = 0xFFAAAAAA;
 
     public static void recordLeftClick() {
-        leftClicks.add(System.currentTimeMillis());
+        synchronized (leftClicks) {
+            leftClicks.add(System.currentTimeMillis());
+        }
     }
 
     public static void recordRightClick() {
-        rightClicks.add(System.currentTimeMillis());
+        synchronized (rightClicks) {
+            rightClicks.add(System.currentTimeMillis());
+        }
     }
 
-    private int getCps(Queue<Long> clicks) {
+    private static int getCPS(Queue<Long> clicks) {
         long now = System.currentTimeMillis();
-        while (!clicks.isEmpty() && now - clicks.peek() > 1000) {
-            clicks.poll();
+        synchronized (clicks) {
+            while (!clicks.isEmpty() && (now - clicks.peek()) > 1000) {
+                clicks.poll();
+            }
+            return clicks.size();
         }
-        return clicks.size();
     }
 
     public void register() {
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("subtick-input-engine", "cps_hud"), this);
+        HudRenderCallback.EVENT.register(this);
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor extractor, DeltaTracker deltaTracker) {
+    public void onHudRender(DrawContext drawContext, float tickDelta) {
         SubTickConfig config = SubTickConfig.getInstance();
         if (!config.isHudEnabled()) return;
 
-        Minecraft client = Minecraft.getInstance();
+        MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.player == null) return;
-        if (client.getDebugOverlay().showDebugScreen()) return;
+        if (client.getDebugHud().shouldShowDebugHud()) return;
 
-        int leftCps = getCps(leftClicks);
-        int rightCps = getCps(rightClicks);
+        TextRenderer textRenderer = client.textRenderer;
 
-        Font font = client.font;
+        int leftCPS = getCPS(leftClicks);
+        int rightCPS = getCPS(rightClicks);
+
         int x = config.getHudX();
         int y = config.getHudY();
+        int padding = 5;
+        int lineHeight = 12;
 
-        // Arka plan
-        extractor.fill(x, y, x + 60, y + 32, BACKGROUND_COLOR);
+        String leftText = "L: " + leftCPS + " CPS";
+        String rightText = "R: " + rightCPS + " CPS";
+        String title = "CPS Counter";
 
-        // Başlık
-        extractor.textRenderer().accept(x + 20, y + 4, Component.literal("§lCPS"));
+        int maxTextWidth = Math.max(
+            Math.max(textRenderer.getWidth(leftText), textRenderer.getWidth(rightText)),
+            textRenderer.getWidth(title)
+        );
+        int boxWidth = maxTextWidth + (padding * 2) + 4;
+        int boxHeight = (lineHeight * 3) + (padding * 2) + 2;
 
-        // Sol Tık
-        int leftColor = getColorForCps(leftCps);
-        extractor.textRenderer().accept(x + 4, y + 18, Component.literal("L: " + leftCps).withStyle(s -> s.withColor(leftColor)));
+        drawContext.fill(x, y, x + boxWidth, y + boxHeight, BG_COLOR);
+        drawContext.fill(x, y, x + boxWidth, y + 1, 0xFF44AAFF);
 
-        // Sağ Tık
-        int rightColor = getColorForCps(rightCps);
-        String rightText = "R: " + rightCps;
-        int rightWidth = font.width(rightText);
-        extractor.textRenderer().accept(x + 60 - rightWidth - 4, y + 18, Component.literal(rightText).withStyle(s -> s.withColor(rightColor)));
-    }
+        int textX = x + padding + 2;
+        int textY = y + padding + 2;
 
-    private int getColorForCps(int cps) {
-        if (cps >= 15) return VALUE_COLOR_HIGH;
-        if (cps >= 9) return VALUE_COLOR_MID;
-        return VALUE_COLOR_LOW;
+        drawContext.drawText(textRenderer, "§f§lCPS", textX, textY, TITLE_COLOR, true);
+        textY += lineHeight + 2;
+
+        String leftColorCode = leftCPS <= 5 ? "§a" : leftCPS <= 12 ? "§e" : "§c";
+        drawContext.drawText(textRenderer,
+            "§7L: " + leftColorCode + leftCPS,
+            textX, textY, LABEL_COLOR, true);
+        textY += lineHeight;
+
+        String rightColorCode = rightCPS <= 5 ? "§a" : rightCPS <= 12 ? "§e" : "§c";
+        drawContext.drawText(textRenderer,
+            "§7R: " + rightColorCode + rightCPS,
+            textX, textY, LABEL_COLOR, true);
     }
 }
