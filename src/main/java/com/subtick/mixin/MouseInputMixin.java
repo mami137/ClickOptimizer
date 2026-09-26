@@ -1,26 +1,27 @@
 package com.subtick.mixin;
 
 import com.subtick.hud.SubTickHud;
-import net.minecraft.client.Mouse;
+import net.minecraft.client.MouseHandler;
+import net.minecraft.client.input.MouseButtonInfo;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(Mouse.class)
+@Mixin(MouseHandler.class)
 public abstract class MouseInputMixin {
 
     @Inject(
-        method = "onMouseButton",
+        method = "onButton",
         at = @At("HEAD")
     )
     private void subtick$captureMouseButton(
-            long window, int button, int action, int modifiers, CallbackInfo ci) {
+            long window, MouseButtonInfo info, int action, CallbackInfo ci) {
         
         if (action == 1) { // GLFW_PRESS
-            if (button == 0) {
+            if (info.button() == 0) {
                 SubTickHud.recordLeftClick();
-            } else if (button == 1) {
+            } else if (info.button() == 1) {
                 SubTickHud.recordRightClick();
             }
         }
